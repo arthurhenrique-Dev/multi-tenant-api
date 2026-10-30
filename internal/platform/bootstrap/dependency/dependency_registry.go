@@ -1,18 +1,19 @@
-package bootstrap
+package dependency
 
 import (
 	"sync"
 
+	"github.com/arthurhenrique-Dev/multi-tenant-api/internal/platform/config"
 	"github.com/arthurhenrique-Dev/multi-tenant-api/pkg"
 )
 
 type InitConfig struct {
 	name  string
-	start func()
+	start func(*config.Config) (any, error)
 	after pkg.Set[string]
 }
 
-func (i *InitConfig) NewInitConfig(name string, start func(), after pkg.Set[string]) *InitConfig {
+func NewInitConfig(name string, start func(*config.Config) (any, error), after pkg.Set[string]) *InitConfig {
 	return &InitConfig{
 		name:  name,
 		start: start,
@@ -25,6 +26,7 @@ type Initializer struct {
 	items     map[string]InitConfig
 	started   pkg.Set[string]
 	completed pkg.Set[string]
+	config    *config.Config
 }
 
 func NewInitializer() *Initializer {
@@ -32,6 +34,7 @@ func NewInitializer() *Initializer {
 		items:     make(map[string]InitConfig),
 		started:   pkg.NewSet[string](),
 		completed: pkg.NewSet[string](),
+		config:    nil,
 	}
 }
 
@@ -41,7 +44,8 @@ func (i *Initializer) Register(config InitConfig) {
 	i.items[config.name] = config
 }
 
-func (i *Initializer) StartDependencies() {
+func (i *Initializer) StartDependencies(config *config.Config) {
+	i.config = config
 	i.executor(
 		func(config InitConfig) bool {
 			return config.after.Len() == 0
@@ -63,7 +67,7 @@ func (i *Initializer) schedule(item InitConfig) {
 	go i.run(item)
 }
 func (i *Initializer) run(item InitConfig) {
-	item.start()
+	item.start(i.config)
 	i.complete(item.name)
 }
 
